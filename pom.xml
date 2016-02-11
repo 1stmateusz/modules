@@ -791,7 +791,7 @@
                                 <includeScope>runtime</includeScope>
                                 <overWriteIfNewer>true</overWriteIfNewer>
                                 <excludeArtifactIds>org.apache.felix.framework</excludeArtifactIds>
-                                <outputDirectory>${user.home}/.motech/bundles</outputDirectory>
+                                <outputDirectory>${motech.dir}/bundles</outputDirectory>
                             </configuration>
                         </execution>
                         <execution>
