@@ -44,8 +44,10 @@ public class FormElementConverter implements Converter {
         addAttrIfNotEmpty(writer, XMLNS, formXml.getXmlns());
         addAttrIfNotEmpty(writer, XMLNS_JRM_KEY, XMLNS_JRM_VALUE);
 
-        if (formXml.getForm() != null) {
-            marshalFormValues(formXml.getForm(), writer);
+        if (formXml.getFormFields() != null && !formXml.getFormFields().isEmpty()) {
+            for (FormValueElement formField : formXml.getFormFields()) {
+                marshalFormValues(formField, writer);
+            }
         }
 
         if (!formXml.getMetadata().isEmpty()) {
