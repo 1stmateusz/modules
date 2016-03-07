@@ -92,7 +92,7 @@
                             <filesets>
                                 <fileset>
                                     <directory>
-                                        ${user.home}/.motech/config/org.motechproject.sms
+                                        ${motech.dir}/config/org.motechproject.sms
                                     </directory>
                                     <includes>
                                         <include>**/*</include>
