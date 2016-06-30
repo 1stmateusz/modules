@@ -1,17 +1,12 @@
 package org.motechproject.openmrs.it.version1_12;
 
-import com.google.gson.Gson;
-import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
 import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.ByteArrayEntity;
-import org.apache.http.entity.StringEntity;
 import org.joda.time.DateTime;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.motechproject.openmrs.config.Configs;
 import org.motechproject.openmrs.domain.Location;
 import org.motechproject.openmrs.domain.Patient;
 import org.motechproject.openmrs.domain.Person;
@@ -23,8 +18,7 @@ import org.motechproject.openmrs.service.OpenMRSProgramEnrollmentService;
 import org.motechproject.openmrs.tasks.OpenMRSTasksNotifier;
 import org.motechproject.openmrs.tasks.constants.DisplayNames;
 import org.motechproject.openmrs.tasks.constants.Keys;
-import org.motechproject.openmrs.util.DummyConfigsData;
-import org.motechproject.openmrs.util.tasks.OpenMRSValidatingChannel;
+import org.motechproject.openmrs.util.task.MRSValidatingChannel;
 import org.motechproject.tasks.contract.ActionEventRequest;
 import org.motechproject.tasks.contract.ActionParameterRequest;
 import org.motechproject.tasks.contract.builder.ActionEventRequestBuilder;
@@ -36,6 +30,8 @@ import org.motechproject.tasks.domain.mds.task.DataSource;
 import org.motechproject.tasks.domain.mds.task.Lookup;
 import org.motechproject.tasks.domain.mds.task.Task;
 import org.motechproject.tasks.domain.mds.task.TaskActionInformation;
+import org.motechproject.tasks.domain.mds.task.TaskConfig;
+import org.motechproject.tasks.domain.mds.task.TaskConfigStep;
 import org.motechproject.tasks.domain.mds.task.TaskTriggerInformation;
 import org.motechproject.tasks.osgi.test.AbstractTaskBundleIT;
 import org.motechproject.testing.osgi.container.MotechNativeTestContainerFactory;
@@ -48,10 +44,10 @@ import org.ops4j.pax.exam.spi.reactors.PerSuite;
 import org.osgi.framework.BundleContext;
 
 import javax.inject.Inject;
-import javax.xml.bind.DatatypeConverter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -87,10 +83,10 @@ public class MRSTaskIntegrationBundleIT extends AbstractTaskBundleIT {
     private OpenMRSLocationService locationService;
 
     @Inject
-    private OpenMRSValidatingChannel validatingChannel;
+    private MRSValidatingChannel validatingChannel;
 
-    private Configs configs;
     private Patient createdPatient;
+    private ProgramEnrollment createdProgramEnrollment;
 
     private static final String OPENMRS_CHANNEL_NAME = "openMRS";
     private static final String OPENMRS_MODULE_NAME = "org.motechproject.mrs";
@@ -98,18 +94,26 @@ public class MRSTaskIntegrationBundleIT extends AbstractTaskBundleIT {
     private static final String TEST_INTERFACE = "org.motechproject.mrs.tasks.action.MRSValidatingChannel";
     private static final String CREATE_PROGRAM_ENROLLMENT = "";
     private static final String CONFIG = "one";
-    private static final String TRIGGER_SUBJECT = "mds.crud.websecurity.MotechUser.CREATE";
-    private static final String PROVIDER_ID = "5";
-    private static final String OBJECT_ID = "0";
-    private static final String DATA_SOURCE_TYPE = "Patient-" + DEFAULT_CONFIG_NAME;
+    private static final String TRIGGER_SUBJECT = "mds.crud.websecurity.MotechPermission.CREATE";
+    private static final String MOTECH_ID = "602";
 
     private static final Integer MAX_RETRIES_BEFORE_FAIL = 20;
     private static final Integer WAIT_TIME = 2000;
 
-    private static final String FORM = "";
-    private static final String XMLNS1 = "";
-
-    private static final String
+    @Override
+    protected Collection<String> getAdditionalTestDependencies() {
+        return Arrays.asList(
+                "org.motechproject:motech-tasks-test-utils",
+                "org.motechproject:motech-tasks",
+                "commons-beanutils:commons-beanutils",
+                "commons-fileupload:commons-fileupload",
+                "org.motechproject:motech-platform-web-security",
+                "org.motechproject:motech-platform-server-bundle",
+                "org.openid4java:com.springsource.org.openid4java",
+                "net.sourceforge.nekohtml:com.springsource.org.cyberneko.html",
+                "org.springframework.security:spring-security-openid"
+        );
+    }
 
     @Before
     public void setUp() throws IOException, InterruptedException {
@@ -121,10 +125,6 @@ public class MRSTaskIntegrationBundleIT extends AbstractTaskBundleIT {
 
     @Test
     public void testOpenMRSTasksIntegration() throws InterruptedException, IOException {
-        configs = DummyConfigsData.prepareConfigs();
-        HttpResponse configurationsResponse = updateConfigurations(configs);
-        assertEquals(HttpStatus.SC_OK, configurationsResponse.getStatusLine().getStatusCode());
-
         createTestData();
 
         waitForChannel(OPENMRS_CHANNEL_NAME);
@@ -201,29 +201,34 @@ public class MRSTaskIntegrationBundleIT extends AbstractTaskBundleIT {
         TaskTriggerInformation triggerInformation = new TaskTriggerInformation("trigger", OPENMRS_CHANNEL_NAME, OPENMRS_MODULE_NAME, VERSION,
                 TRIGGER_SUBJECT, TRIGGER_SUBJECT);
 
-        TaskActionInformation actionInformation = new TaskActionInformation("Create Program Enrollment Action", OPENMRS_CHANNEL_NAME, OPENMRS_CHANNEL_NAME, VERSION,
+        TaskActionInformation actionInformation = new TaskActionInformation("Create Program Enrollment [" + DEFAULT_CONFIG_NAME + "]", OPENMRS_CHANNEL_NAME, OPENMRS_MODULE_NAME, VERSION,
                 TEST_INTERFACE, "createProgramEnrollment");
+
         actionInformation.setSubject("validate");
 
+        SortedSet<TaskConfigStep> taskConfigStepSortedSet = new TreeSet<>();
+        taskConfigStepSortedSet.add(createProgramEnrollmentDataSource());
+        TaskConfig taskConfig = new TaskConfig();
+        taskConfig.addAll(taskConfigStepSortedSet);
+
         Map<String, String> values = new HashMap<>();
-        values.put(Keys.PATIENT_UUID, createdPatient.getUuid());
-        values.put(Keys.PROGRAM_UUID, "187af646-373b-4459-8114-4724d7e07fd5");
-        values.put(Keys.PATIENT_UUID, "187af646-373b-4459-8114-4724d7e07fd5");
+        values.put(Keys.PATIENT_UUID, "{{ad.openMRS.ProgramEnrollment-" + DEFAULT_CONFIG_NAME + "#0.patient.uuid}}-post");
+        values.put(Keys.PROGRAM_UUID, "{{ad.openMRS.ProgramEnrollment-" + DEFAULT_CONFIG_NAME + "#0.program.uuid}}-post");
         values.put(Keys.DATE_ENROLLED, new DateTime("2010-01-16T00:00:00Z").toString());
         values.put(Keys.DATE_COMPLETED, new DateTime("2016-01-16T00:00:00Z").toString());
         values.put(Keys.LOCATION_NAME, locationService.getLocations(DEFAULT_CONFIG_NAME, DEFAULT_LOCATION_NAME).get(0).toString());
+        values.put(Keys.CONFIG_NAME, DEFAULT_CONFIG_NAME);
         actionInformation.setValues(values);
 
-        Task task = new Task("OpenTestTask", triggerInformation, Arrays.asList(actionInformation));
+        Task task = new Task("OpenTestTask", triggerInformation, Arrays.asList(actionInformation), taskConfig, true, true);
         getTaskService().save(task);
 
         getTriggerHandler().registerHandlerFor(task.getTrigger().getEffectiveListenerSubject());
     }
 
     private HttpResponse sendMockForm() throws IOException, InterruptedException {
-        HttpPost httpPost = new HttpPost(String.format("http://localhost:%d/commcare/forms/%s", PORT, configs.getByName("one").getName()));
-        HttpEntity body = new ByteArrayEntity(FORM.getBytes("UTF-8"));
-        httpPost.setEntity(body);
+        String permissionName = "testPermission";
+        HttpPost httpPost = new HttpPost(String.format("http://localhost:%d/websecurity/permissions/%s", PORT, permissionName));
         return getHttpClient().execute(httpPost);
     }
 
@@ -245,6 +250,16 @@ public class MRSTaskIntegrationBundleIT extends AbstractTaskBundleIT {
         ProgramEnrollment.StateStatus stateStatus = new ProgramEnrollment.StateStatus();
         stateStatus.setState(state);
         stateStatus.setStartDate(stateStartDate.toDate());
+
+        ProgramEnrollment programEnrollment = new ProgramEnrollment();
+        programEnrollment.setProgram(program);
+        programEnrollment.setPatient(createdPatient);
+        programEnrollment.setDateEnrolled(dateEnrolled.toDate());
+        programEnrollment.setDateCompleted(dateCompleted.toDate());
+        programEnrollment.setLocation(location);
+        programEnrollment.setStates(Collections.singletonList(stateStatus));
+
+        createdProgramEnrollment = programEnrollmentService.createProgramEnrollment(DEFAULT_CONFIG_NAME, programEnrollment);
     }
 
     private Patient preparePatient() {
@@ -266,7 +281,7 @@ public class MRSTaskIntegrationBundleIT extends AbstractTaskBundleIT {
 
         assertNotNull(location);
 
-        return new Patient(person, "602", location);
+        return new Patient(person, MOTECH_ID, location);
     }
 
     private void waitForTaskExecution() throws InterruptedException {
@@ -284,10 +299,11 @@ public class MRSTaskIntegrationBundleIT extends AbstractTaskBundleIT {
         return String.format("%s [%s]", actionName, configName);
     }
 
-    private DataSource createDataSource() {
+    private DataSource createProgramEnrollmentDataSource() {
         List<Lookup> lookupList = new ArrayList<>();
-        DataSource patientDataSource = new DataSource(OPENMRS_CHANNEL_NAME, PROVIDER_ID, OBJECT_ID, DATA_SOURCE_TYPE, "openMRS.lookup.motechId", lookupList, );
-
+        lookupList.add(new Lookup("openMRS.patient.motechId", MOTECH_ID));
+        lookupList.add(new Lookup("openMRS.programName", createdProgramEnrollment.getProgram().getName()));
+        return new DataSource(OPENMRS_CHANNEL_NAME, new Long(5), new Long(0), "ProgramEnrollment-" + DEFAULT_CONFIG_NAME, "openMRS.lookup.motechIdAndProgramName", lookupList, false);
     }
 }
 
