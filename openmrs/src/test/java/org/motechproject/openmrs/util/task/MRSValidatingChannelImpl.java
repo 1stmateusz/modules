@@ -8,24 +8,21 @@ import javax.annotation.PostConstruct;
 public class MRSValidatingChannelImpl implements MRSValidatingChannel {
 
     private boolean executed;
-    private String pregnant;
-    private String dob;
-    private String caseId;
+    private String programUUID;
+    private String patientUUID;
 
     @PostConstruct
     public void setUp() {
         executed = false;
-        pregnant = "";
-        dob = "";
-        caseId = "";
+        programUUID = "";
+        patientUUID = "";
     }
 
     @Override
-    public void execute(String pregnant, String dob, String caseId) {
+    public void execute(String patientUUID, String programUUID) {
         executed = true;
-        this.pregnant = pregnant;
-        this.dob = dob;
-        this.caseId = caseId;
+        this.programUUID = programUUID;
+        this.patientUUID = patientUUID;
     }
 
     @Override
@@ -34,7 +31,7 @@ public class MRSValidatingChannelImpl implements MRSValidatingChannel {
     }
 
     @Override
-    public boolean verify() {
-        return pregnant.equals("") && dob.equals("") && caseId.equals("");
+    public boolean verify(String patientUUID, String programUUID) {
+        return patientUUID.equals(patientUUID) && programUUID.equals(programUUID);
     }
 }

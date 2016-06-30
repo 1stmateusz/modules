@@ -140,7 +140,7 @@ public class MRSTaskIntegrationBundleIT extends AbstractTaskBundleIT {
         // Give Tasks some time to process
         waitForTaskExecution();
         // Ask our OSGi service, which acts as Task action, to verify that correct values were received
-        assertTrue(validatingChannel.verify());
+        assertTrue(validatingChannel.verify(createdPatient.getUuid() + "-post", createdProgramEnrollment.getProgram().getUuid() + "-post"));
     }
 
     private void createDummyActionChannel(Channel channel) {
