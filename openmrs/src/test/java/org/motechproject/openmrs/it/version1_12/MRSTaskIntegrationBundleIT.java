@@ -110,7 +110,6 @@ public class MRSTaskIntegrationBundleIT extends AbstractTaskBundleIT {
     private static final String TEST_INTERFACE = "org.motechproject.openmrs.tasks.OpenMRSActionProxyService";
     private static final String TRIGGER_SUBJECT = "mds.crud.serverconfig.SettingsRecord.CREATE";
     private static final String MOTECH_ID = "602";
-    private static final String ENCOUNTER_TYPE = "ADULTINITIAL";
 
     private static final Integer MAX_RETRIES_BEFORE_FAIL = 20;
     private static final Integer WAIT_TIME = 2000;
@@ -143,6 +142,7 @@ public class MRSTaskIntegrationBundleIT extends AbstractTaskBundleIT {
         Channel mdsChannel = findChannel(MDS_CHANNEL_NAME);
 
         createdPatient = patientService.createPatient(DEFAULT_CONFIG_NAME, preparePatient());
+        createdProvider = providerService.createProvider(DEFAULT_CONFIG_NAME, prepareProvider());
     }
 
     @Test
@@ -150,7 +150,7 @@ public class MRSTaskIntegrationBundleIT extends AbstractTaskBundleIT {
         createProgramEnrollmentTestData();
         Long taskID = createProgramEnrollmentTestTask();
 
-        sendMotechEvent(TRIGGER_SUBJECT);
+        activateTrigger();
 
         // Give Tasks some time to process
         waitForTaskExecution();
@@ -165,7 +165,7 @@ public class MRSTaskIntegrationBundleIT extends AbstractTaskBundleIT {
         createEncounterTestData();
         Long taskID = createEncounterTestTask();
 
-        sendMotechEvent(TRIGGER_SUBJECT);
+        activateTrigger();
 
         // Give Tasks some time to process
         waitForTaskExecution();
@@ -173,6 +173,34 @@ public class MRSTaskIntegrationBundleIT extends AbstractTaskBundleIT {
         deleteTask(taskID);
 
         assertTrue(checkIfEncounterWasCreatedProperly());
+    }
+
+    @Test
+    public void testOpenMRSPatientDataSourceAndCreatePatientAction() throws InterruptedException, IOException, ParseException, ConceptNameAlreadyInUseException {
+        Long taskID = createPatientTestTask();
+
+        activateTrigger();
+
+        // Give Tasks some time to process
+        waitForTaskExecution();
+
+        deleteTask(taskID);
+
+        assertTrue(checkIfPatientWasCreatedProperly());
+    }
+
+    @Test
+    public void testOpenMRSProviderDataSourceAndCreateEncounterAction() throws InterruptedException, IOException, ParseException, ConceptNameAlreadyInUseException {
+        Long taskID = createProviderTestTask();
+
+        activateTrigger();
+
+        // Give Tasks some time to process
+        waitForTaskExecution();
+
+        deleteTask(taskID);
+
+        assertTrue(checkIfProviderWasCreatedProperly());
     }
 
     private Long createProgramEnrollmentTestTask() {
@@ -237,6 +265,67 @@ public class MRSTaskIntegrationBundleIT extends AbstractTaskBundleIT {
         return task.getId();
     }
 
+    private Long createPatientTestTask() {
+        TaskTriggerInformation triggerInformation = new TaskTriggerInformation("CREATE SettingsRecord", "data-services", MDS_CHANNEL_NAME,
+                VERSION, TRIGGER_SUBJECT, TRIGGER_SUBJECT);
+
+        TaskActionInformation actionInformation = new TaskActionInformation("Create Patient [" + DEFAULT_CONFIG_NAME + "]", OPENMRS_CHANNEL_NAME,
+                OPENMRS_CHANNEL_NAME, VERSION, TEST_INTERFACE, "createPatient");
+
+        actionInformation.setSubject("validate");
+
+        SortedSet<TaskConfigStep> taskConfigStepSortedSet = new TreeSet<>();
+        taskConfigStepSortedSet.add(createPatientDataSource());
+        TaskConfig taskConfig = new TaskConfig();
+        taskConfig.addAll(taskConfigStepSortedSet);
+
+        Map<String, String> values = new HashMap<>();
+        values.put(Keys.BIRTH_DATE, "{{ad.openMRS.Patient-" + DEFAULT_CONFIG_NAME + "#0.person.birthdate}}");
+        values.put(Keys.FAMILY_NAME, "{{ad.openMRS.Patient-" + DEFAULT_CONFIG_NAME + "#0.person.display}}");
+        values.put(Keys.GENDER, "{{ad.openMRS.Patient-" + DEFAULT_CONFIG_NAME + "#0.person.gender}}");
+        values.put(Keys.GIVEN_NAME, "{{ad.openMRS.Patient-" + DEFAULT_CONFIG_NAME + "#0.person.display}}");
+        values.put(Keys.MOTECH_ID, "{{ad.openMRS.Patient-" + DEFAULT_CONFIG_NAME + "#0.motechId}}");
+        values.put(Keys.CONFIG_NAME, DEFAULT_CONFIG_NAME);
+        actionInformation.setValues(values);
+
+        Task task = new Task("OpenMRSPatientTestTask", triggerInformation, Arrays.asList(actionInformation), taskConfig, true, true);
+        getTaskService().save(task);
+
+        getTriggerHandler().registerHandlerFor(task.getTrigger().getEffectiveListenerSubject());
+
+        return task.getId();
+    }
+
+    private Long createProviderTestTask() {
+        TaskTriggerInformation triggerInformation = new TaskTriggerInformation("CREATE SettingsRecord", "data-services", MDS_CHANNEL_NAME,
+                VERSION, TRIGGER_SUBJECT, TRIGGER_SUBJECT);
+
+        TaskActionInformation actionInformation = new TaskActionInformation("Create Encounter [" + DEFAULT_CONFIG_NAME + "]", OPENMRS_CHANNEL_NAME,
+                OPENMRS_CHANNEL_NAME, VERSION, TEST_INTERFACE, "createEncounter");
+
+        actionInformation.setSubject("validate");
+
+        SortedSet<TaskConfigStep> taskConfigStepSortedSet = new TreeSet<>();
+        taskConfigStepSortedSet.add(createProviderDataSource());
+        TaskConfig taskConfig = new TaskConfig();
+        taskConfig.addAll(taskConfigStepSortedSet);
+
+        Map<String, String> values = new HashMap<>();
+        values.put(Keys.PROVIDER_UUID, "{{ad.openMRS.Provider-TestOpenMRSServer#0.uuid}}");
+        values.put(Keys.ENCOUNTER_DATE, createdEncounter.getEncounterDatetime().toString());
+        values.put(Keys.ENCOUNTER_TYPE, createdEncounter.getEncounterType().toString());
+        values.put(Keys.PATIENT_UUID, createdEncounter.getPatient().getUuid());
+        values.put(Keys.CONFIG_NAME, DEFAULT_CONFIG_NAME);
+        actionInformation.setValues(values);
+
+        Task task = new Task("OpenMRSPatientTestTask", triggerInformation, Arrays.asList(actionInformation), taskConfig, true, true);
+        getTaskService().save(task);
+
+        getTriggerHandler().registerHandlerFor(task.getTrigger().getEffectiveListenerSubject());
+
+        return task.getId();
+    }
+
     private void createProgramEnrollmentTestData() {
         Program program = new Program();
         program.setUuid("187af646-373b-4459-8114-4724d7e07fd5");
@@ -266,11 +355,10 @@ public class MRSTaskIntegrationBundleIT extends AbstractTaskBundleIT {
     }
 
     private void createEncounterTestData() throws ParseException, ConceptNameAlreadyInUseException {
-        Provider provider = providerService.createProvider(DEFAULT_CONFIG_NAME, prepareProvider());
         Observation observation = prepareObservations();
 
         Location location = locationService.getLocations(DEFAULT_CONFIG_NAME, DEFAULT_LOCATION_NAME).get(0);
-        Encounter encounter = new Encounter(location, prepareEncounterType(), format.parse(date), createdPatient, Collections.singletonList(provider.getPerson()),
+        Encounter encounter = new Encounter(location, prepareEncounterType(), prepareProviderDate(), createdPatient, Collections.singletonList(createdProvider.getPerson()),
                 Collections.singletonList(observation));
 
         createdEncounter = encounterService.createEncounter(DEFAULT_CONFIG_NAME, encounter);
@@ -346,9 +434,9 @@ public class MRSTaskIntegrationBundleIT extends AbstractTaskBundleIT {
         return conceptService.createConcept(DEFAULT_CONFIG_NAME, tempConcept);
     }
 
-    private Date prepareProviderDate() {
+    private Date prepareProviderDate() throws ParseException {
         SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd");
-        format.
+        return format.parse("2011-01-16T00:00:00Z");
     }
 
     private void waitForTaskExecution() throws InterruptedException {
@@ -366,7 +454,7 @@ public class MRSTaskIntegrationBundleIT extends AbstractTaskBundleIT {
         List<Lookup> lookupList = new ArrayList<>();
         lookupList.add(new Lookup("openMRS.patient.motechId", MOTECH_ID));
         lookupList.add(new Lookup("openMRS.programName", createdProgramEnrollment.getProgram().getName()));
-        DataSource dataSource = new DataSource(OPENMRS_MODULE_NAME, new Long(5), new Long(0), "ProgramEnrollment-" + DEFAULT_CONFIG_NAME, "openMRS.lookup.motechIdAndProgramName", lookupList, false);
+        DataSource dataSource = new DataSource(OPENMRS_MODULE_NAME, new Long(4), new Long(0), "ProgramEnrollment-" + DEFAULT_CONFIG_NAME, "openMRS.lookup.motechIdAndProgramName", lookupList, false);
         dataSource.setOrder(0);
         return dataSource;
     }
@@ -374,7 +462,23 @@ public class MRSTaskIntegrationBundleIT extends AbstractTaskBundleIT {
     private DataSource createEncounterDataSource() {
         List<Lookup> lookupList = new ArrayList<>();
         lookupList.add(new Lookup("openMRS.UUID", createdEncounter.getUuid()));
-        DataSource dataSource = new DataSource(OPENMRS_MODULE_NAME, new Long(5), new Long(0), "Encounter-" + DEFAULT_CONFIG_NAME, "openMRS.lookup.uuid", lookupList, false);
+        DataSource dataSource = new DataSource(OPENMRS_MODULE_NAME, new Long(4), new Long(0), "Encounter-" + DEFAULT_CONFIG_NAME, "openMRS.lookup.uuid", lookupList, false);
+        dataSource.setOrder(0);
+        return dataSource;
+    }
+
+    private DataSource createPatientDataSource() {
+        List<Lookup> lookupList = new ArrayList<>();
+        lookupList.add(new Lookup("openMRS.UUID", createdPatient.getUuid()));
+        DataSource dataSource = new DataSource(OPENMRS_MODULE_NAME, new Long(4), new Long(0), "Patient-" + DEFAULT_CONFIG_NAME, "openMRS.lookup.uuid", lookupList, false);
+        dataSource.setOrder(0);
+        return dataSource;
+    }
+
+    private DataSource createProviderDataSource() {
+        List<Lookup> lookupList = new ArrayList<>();
+        lookupList.add(new Lookup("openMRS.UUID", createdProvider.getUuid()));
+        DataSource dataSource = new DataSource(OPENMRS_MODULE_NAME, new Long(4), new Long(0), "Provider-" + DEFAULT_CONFIG_NAME, "openMRS.lookup.uuid", lookupList, false);
         dataSource.setOrder(0);
         return dataSource;
     }
@@ -392,14 +496,40 @@ public class MRSTaskIntegrationBundleIT extends AbstractTaskBundleIT {
 
     private boolean checkIfEncounterWasCreatedProperly() {
         int encounterCount = 0;
-        List<Encounter> encounterList = encounterService.getEncountersByEncounterType(DEFAULT_CONFIG_NAME, MOTECH_ID, ENCOUNTER_TYPE);
+        List<Encounter> encounterList = encounterService.getEncountersByEncounterType(DEFAULT_CONFIG_NAME, MOTECH_ID, createdEncounter.getEncounterType().toString());
         for (Encounter encounter : encounterList) {
 
         }
         return encounterCount == 2 ? true : false;
     }
 
-    private void sendMotechEvent(String subject) {
+    private boolean checkIfPatientWasCreatedProperly() {
+        int patientCount = 0;
+        List<Patient> patientList = patientService.search(DEFAULT_CONFIG_NAME, createdPatient.getDisplay(), MOTECH_ID);
+        for (Patient patient : patientList) {
+            if (patient.getPerson().getBirthdate().equals(createdPatient.getPerson().getBirthdate()) &&
+                    patient.getMotechId().equals(createdPatient.getMotechId()) &&
+                    patient.getPerson().getGender().equals(createdPatient.getPerson().getGender())) {
+                patientCount++;
+            }
+        }
+        return patientCount == 2 ? true : false;
+    }
+
+    private boolean checkIfProviderWasCreatedProperly() {
+        int patientCount = 0;
+        List<Patient> patientList = patientService.search(DEFAULT_CONFIG_NAME, createdPatient.getDisplay(), MOTECH_ID);
+        for (Patient patient : patientList) {
+            if (patient.getPerson().getBirthdate().equals(createdPatient.getPerson().getBirthdate()) &&
+                    patient.getMotechId().equals(createdPatient.getMotechId()) &&
+                    patient.getPerson().getGender().equals(createdPatient.getPerson().getGender())) {
+                patientCount++;
+            }
+        }
+        return patientCount == 2 ? true : false;
+    }
+
+    private void activateTrigger() {
         settingsDataService.create(new SettingsRecord());
     }
 
