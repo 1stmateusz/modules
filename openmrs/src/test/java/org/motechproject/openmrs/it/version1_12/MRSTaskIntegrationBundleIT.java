@@ -1,35 +1,24 @@
 package org.motechproject.openmrs.it.version1_12;
 
-import org.apache.commons.lang3.text.translate.NumericEntityUnescaper;
 import org.joda.time.DateTime;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.motechproject.config.domain.SettingsRecord;
 import org.motechproject.config.mds.SettingsDataService;
-import org.motechproject.event.MotechEvent;
-import org.motechproject.event.listener.EventRelay;
+import org.motechproject.mds.query.QueryParams;
+import org.motechproject.mds.util.Order;
 import org.motechproject.openmrs.domain.*;
 import org.motechproject.openmrs.exception.ConceptNameAlreadyInUseException;
 import org.motechproject.openmrs.service.*;
 import org.motechproject.openmrs.tasks.OpenMRSTasksNotifier;
 import org.motechproject.openmrs.tasks.constants.Keys;
 import org.motechproject.tasks.domain.mds.channel.Channel;
-import org.motechproject.tasks.domain.mds.channel.EventParameter;
-import org.motechproject.tasks.domain.mds.channel.TriggerEvent;
-import org.motechproject.tasks.domain.mds.task.DataSource;
-import org.motechproject.tasks.domain.mds.task.Lookup;
-import org.motechproject.tasks.domain.mds.task.Task;
-import org.motechproject.tasks.domain.mds.task.TaskActionInformation;
-import org.motechproject.tasks.domain.mds.task.TaskConfig;
-import org.motechproject.tasks.domain.mds.task.TaskConfigStep;
-import org.motechproject.tasks.domain.mds.task.TaskTriggerInformation;
+import org.motechproject.tasks.domain.mds.task.*;
 import org.motechproject.tasks.osgi.test.AbstractTaskBundleIT;
-import org.motechproject.tasks.service.ChannelService;
-import org.motechproject.tasks.service.TaskActivityService;
+import org.motechproject.tasks.repository.TaskActivitiesDataService;
 import org.motechproject.testing.osgi.container.MotechNativeTestContainerFactory;
 import org.motechproject.testing.osgi.helper.ServiceRetriever;
-import org.motechproject.testing.utils.TestContext;
 import org.ops4j.pax.exam.ExamFactory;
 import org.ops4j.pax.exam.junit.PaxExam;
 import org.ops4j.pax.exam.spi.reactors.ExamReactorStrategy;
@@ -37,22 +26,10 @@ import org.ops4j.pax.exam.spi.reactors.PerSuite;
 import org.osgi.framework.BundleContext;
 
 import javax.inject.Inject;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.Charset;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.SortedSet;
-import java.util.TreeSet;
+import java.util.*;
 
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -63,8 +40,6 @@ import static org.motechproject.openmrs.util.TestConstants.DEFAULT_CONFIG_NAME;
 @ExamReactorStrategy(PerSuite.class)
 @ExamFactory(MotechNativeTestContainerFactory.class)
 public class MRSTaskIntegrationBundleIT extends AbstractTaskBundleIT {
-
-    private static final int PORT = TestContext.getJettyPort();
 
     private OpenMRSTasksNotifier openMRSTasksNotifier;
 
@@ -97,6 +72,9 @@ public class MRSTaskIntegrationBundleIT extends AbstractTaskBundleIT {
 
     @Inject
     private OpenMRSConceptService conceptService;
+
+    @Inject
+    private TaskActivitiesDataService taskActivitiesDataService;
 
     private Patient createdPatient;
     private ProgramEnrollment createdProgramEnrollment;
@@ -146,14 +124,14 @@ public class MRSTaskIntegrationBundleIT extends AbstractTaskBundleIT {
     }
 
     @Test
-    public void testOpenMRSProgramEnrollmentDataSource() throws InterruptedException, IOException {
+    public void testOpenMRSProgramEnrollmentDataSourceAndCreateProgramEnrollmentAction() throws InterruptedException, IOException {
         createProgramEnrollmentTestData();
         Long taskID = createProgramEnrollmentTestTask();
 
         activateTrigger();
 
         // Give Tasks some time to process
-        waitForTaskExecution();
+        waitForTaskExecution(taskID);
 
         deleteTask(taskID);
 
@@ -161,14 +139,14 @@ public class MRSTaskIntegrationBundleIT extends AbstractTaskBundleIT {
     }
 
     @Test
-    public void testOpenMRSEncounterDataSource() throws InterruptedException, IOException, ParseException, ConceptNameAlreadyInUseException {
+    public void testOpenMRSEncounterDataSourceAndCreateEncounterAction() throws InterruptedException, IOException, ParseException, ConceptNameAlreadyInUseException {
         createEncounterTestData();
         Long taskID = createEncounterTestTask();
 
         activateTrigger();
 
         // Give Tasks some time to process
-        waitForTaskExecution();
+        waitForTaskExecution(taskID);
 
         deleteTask(taskID);
 
@@ -182,7 +160,7 @@ public class MRSTaskIntegrationBundleIT extends AbstractTaskBundleIT {
         activateTrigger();
 
         // Give Tasks some time to process
-        waitForTaskExecution();
+        waitForTaskExecution(taskID);
 
         deleteTask(taskID);
 
@@ -196,7 +174,7 @@ public class MRSTaskIntegrationBundleIT extends AbstractTaskBundleIT {
         activateTrigger();
 
         // Give Tasks some time to process
-        waitForTaskExecution();
+        waitForTaskExecution(taskID);
 
         deleteTask(taskID);
 
@@ -226,7 +204,7 @@ public class MRSTaskIntegrationBundleIT extends AbstractTaskBundleIT {
         values.put(Keys.CONFIG_NAME, DEFAULT_CONFIG_NAME);
         actionInformation.setValues(values);
 
-        Task task = new Task("OpenTestTask1", triggerInformation, Arrays.asList(actionInformation), taskConfig, true, true);
+        Task task = new Task("OpenMRSProgramEnrollmentTestTask", triggerInformation, Arrays.asList(actionInformation), taskConfig, true, true);
         getTaskService().save(task);
 
         getTriggerHandler().registerHandlerFor(task.getTrigger().getEffectiveListenerSubject());
@@ -245,7 +223,7 @@ public class MRSTaskIntegrationBundleIT extends AbstractTaskBundleIT {
 
         SortedSet<TaskConfigStep> taskConfigStepSortedSet = new TreeSet<>();
         taskConfigStepSortedSet.add(createEncounterDataSource());
-        TaskConfig taskConfig = new TaskConfig();
+        TaskConfig taskConfig = new TaskConfig( );
         taskConfig.addAll(taskConfigStepSortedSet);
 
         Map<String, String> values = new HashMap<>();
@@ -318,7 +296,7 @@ public class MRSTaskIntegrationBundleIT extends AbstractTaskBundleIT {
         values.put(Keys.CONFIG_NAME, DEFAULT_CONFIG_NAME);
         actionInformation.setValues(values);
 
-        Task task = new Task("OpenMRSPatientTestTask", triggerInformation, Arrays.asList(actionInformation), taskConfig, true, true);
+        Task task = new Task("OpenMRSProviderTestTask", triggerInformation, Arrays.asList(actionInformation), taskConfig, true, true);
         getTaskService().save(task);
 
         getTriggerHandler().registerHandlerFor(task.getTrigger().getEffectiveListenerSubject());
@@ -439,15 +417,24 @@ public class MRSTaskIntegrationBundleIT extends AbstractTaskBundleIT {
         return format.parse("2011-01-16T00:00:00Z");
     }
 
-    private void waitForTaskExecution() throws InterruptedException {
+    private void waitForTaskExecution(Long taskID) throws InterruptedException {
         getLogger().info("testOpenMRSTasksIntegration starts waiting for task to execute");
         int retries = 0;
-        while (retries < MAX_RETRIES_BEFORE_FAIL) {
+        while (retries < MAX_RETRIES_BEFORE_FAIL && !hasTaskExecuted(taskID)) {
             retries++;
             Thread.sleep(WAIT_TIME);
         }
         getLogger().info("Task executed after " + retries + " retries, what took about "
                 + (retries * WAIT_TIME) / 1000 + " seconds");
+    }
+
+    private boolean hasTaskExecuted(Long taskID) {
+        Set<TaskActivityType> activityTypes = new HashSet<>();
+        activityTypes.add(TaskActivityType.SUCCESS);
+        QueryParams queryParams = new QueryParams((Order) null);
+        List<TaskActivity> taskActivities = taskActivitiesDataService.byTaskAndActivityTypes(taskID, activityTypes, queryParams);
+
+        return taskActivities.size() == 1 ? true : false;
     }
 
     private DataSource createProgramEnrollmentDataSource() {
