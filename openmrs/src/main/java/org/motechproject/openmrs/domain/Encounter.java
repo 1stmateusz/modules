@@ -116,6 +116,13 @@ public class Encounter {
         this.obs = obs;
     }
 
+    public String getProviderUuid() {
+        if (encounterProviders != null && encounterProviders.get(0) != null && encounterProviders.get(0).getUuid() != null) {
+            return encounterProviders.get(0).getUuid();
+        }
+        return null;
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(uuid, display, location, encounterType, encounterDatetime, patient, encounterProviders, obs);

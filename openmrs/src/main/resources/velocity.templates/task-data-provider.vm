@@ -33,7 +33,7 @@
             },
             {
               "displayName": "openMRS.provider.uuid",
-              "fieldKey": "provider.uuid"
+              "fieldKey": "providerUuid"
             },
             {
               "displayName": "openMRS.provider.display",
