@@ -1,0 +1,319 @@
+#macro( buildDisplayName $subject $name $applicationName $configName )
+    "$esc.java($DisplayNameHelper.buildDisplayName($subject, $name, $applicationName, $configName))"
+#end
+
+{
+    "name": "commcare",
+    "objects": [
+            #foreach($config in $configurations)
+                {
+                    "displayName": #buildDisplayName("Fixture", "", "", $config.getConfigName()),
+                    "type": "CommcareFixture-$esc.java($config.getConfigName())",
+                    "lookupFields": [
+                            {
+                                "displayName": "commcare.id",
+                                "fields": [
+                                        "id"
+                                ]
+                            }
+                        ],
+                    "fields": [
+                            {
+                                "displayName": "commcare.field.configName",
+                                "fieldKey": "configName"
+                            },
+                            {
+                                "displayName": "commcare.fixture.field.id",
+                                "fieldKey": "id"
+                            },
+                            {
+                                "displayName": "commcare.fixture.field.fixtureType",
+                                "fieldKey": "fixtureType"
+                            },
+                            {
+                                "displayName": "commcare.fixture.field.fields",
+                                "fieldKey": "fields",
+                                "type": "MAP"
+                            }
+                        ]
+                },
+
+                #foreach ( $entry in $config.getFormsWithApplication() )
+                    {
+                        "displayName": #buildDisplayName("Form", $entry.getForm().getFormName(), $entry.getApplicationName(), $config.getConfigName()),
+                        "type": "CommcareForm$trimmer.trim($esc.java($entry.getForm().getFormName()))-$esc.java($config.getConfigName())",
+                        "lookupFields": [
+                            {
+                                "displayName": "commcare.id",
+                                "fields": [
+                                    "id"
+                                ]
+                            }
+                        ],
+                        "fields": [
+                                {
+                                    "displayName": "commcare.field.configName",
+                                    "fieldKey": "configName"
+                                },
+                                #foreach ( $question in $entry.getForm().getQuestions() )
+                                {
+                                   "displayName" : "$esc.java($question.getQuestionValue())",
+                                   "fieldKey" : "$esc.java($question.getQuestionValue())"
+                                },
+                                #end
+                                {
+                                   "displayName" : "commcare.form.field.id",
+                                   "fieldKey" : "id"
+                                },
+                                {
+                                   "displayName" : "commcare.form.field.md5",
+                                   "fieldKey" : "md5"
+                                },
+                                {
+                                   "displayName" : "commcare.form.field.receivedOn",
+                                   "fieldKey" : "receivedOn"
+                                },
+                                {
+                                   "displayName" : "commcare.form.field.metadata",
+                                   "fieldKey" : "metadata",
+                                   "type" : "MAP"
+                                },
+                                {
+                                   "displayName" : "commcare.form.field.resourceUri",
+                                   "fieldKey" : "resourceUri"
+                                },
+                                {
+                                   "displayName" : "commcare.form.field.type",
+                                   "fieldKey" : "type"
+                                },
+                                {
+                                   "displayName" : "commcare.form.field.uiversion",
+                                   "fieldKey" : "uiversion"
+                                },
+                                {
+                                   "displayName" : "commcare.form.field.version",
+                                   "fieldKey" : "version"
+                                },
+                                {
+                                   "displayName" : "commcare.form.field.archived",
+                                   "fieldKey" : "archived"
+                                }
+                            ]
+                    },
+                #end
+                #foreach ($entry in $config.getCasesWithApplication())
+                    {
+                        "displayName": #buildDisplayName("Case", $entry.getCaseType(), $entry.getApplicationName(), $config.getConfigName()),
+                        "type": "CaseInfo$trimmer.trim($esc.java($entry.getCaseType()))-$esc.java($config.getConfigName())",
+                        "lookupFields": [
+                                {
+                                    "displayName": "commcare.id",
+                                    "fields": [
+                                            "id"
+                                        ]
+                                }
+                            ],
+                        "fields": [
+                                {
+                                    "displayName": "commcare.field.configName",
+                                    "fieldKey": "configName"
+                                },
+                                {
+                                    "displayName" : "commcare.case.field.caseId",
+                                    "fieldKey" : "caseId"
+                                },
+                                {
+                                    "displayName" : "commcare.case.field.userId",
+                                    "fieldKey" : "userId"
+                                },
+                                {
+                                     "displayName" : "commcare.case.field.dateClosed",
+                                     "fieldKey" : "dateClosed"
+                                },
+                                {
+                                    "displayName" : "commcare.case.field.domain",
+                                    "fieldKey" : "domain"
+                                },
+                                {
+                                    "displayName" : "commcare.case.field.xFormIds",
+                                    "fieldKey" : "xFormIds",
+                                    "type" : "LIST"
+                                },
+                                {
+                                    "displayName" : "commcare.case.field.version",
+                                    "fieldKey" : "version"
+                                },
+                                {
+                                    "displayName" : "commcare.case.field.serverDateOpened",
+                                    "fieldKey" : "serverDateOpened"
+                                },
+                                {
+                                    "displayName" : "commcare.case.field.caseType",
+                                    "fieldKey" : "caseType"
+                                },
+                                {
+                                    "displayName" : "commcare.case.field.dateOpened",
+                                    "fieldKey" : "dateOpened"
+                                },
+                                {
+                                    "displayName" : "commcare.case.field.ownerId",
+                                    "fieldKey" : "ownerId"
+                                },
+                                {
+                                    "displayName" : "commcare.case.field.caseName",
+                                    "fieldKey" : "caseName"
+                                },
+                                #foreach($caseField in $entry.getCaseProperties())
+                                {
+                                    "displayName" : "$esc.java($caseField)",
+                                    "fieldKey" : "$trimmer.trim($esc.java($caseField))"
+                                },
+                                #end
+                                {
+                                    "displayName" : "commcare.case.field.serverDateModified",
+                                    "fieldKey" : "serverDateModified"
+                                },
+                                {
+                                    "displayName" : "commcare.case.field.closed",
+                                    "fieldKey" : "closed"
+                                },
+                                {
+                                    "displayName" : "commcare.case.field.indices",
+                                    "fieldKey" : "indices",
+                                    "type" : "MAP"
+                                }
+                            ]
+                    },
+                #end
+                {
+                    "displayName": #buildDisplayName("User", "", "", $config.getConfigName()),
+                    "type": "CommcareUser-$esc.java($config.getConfigName())",
+                    "lookupFields": [
+                            {
+                                "displayName": "commcare.id",
+                                "fields": [
+                                        "id"
+                                ]
+                            }
+                    ],
+                    "fields": [
+                            {
+                                "displayName": "commcare.user.field.defaultPhoneNumber",
+                                "fieldKey": "defaultPhoneNumber"
+                            },
+                            {
+                                "displayName": "commcare.user.field.email",
+                                "fieldKey": "email"
+                            },
+                            {
+                                "displayName": "commcare.user.field.firstName",
+                                "fieldKey": "firstName"
+                            },
+                            {
+                                "displayName": "commcare.user.field.id",
+                                "fieldKey": "id"
+                            },
+                            {
+                                "displayName": "commcare.user.field.lastName",
+                                "fieldKey": "lastName"
+                            },
+                            {
+                                "displayName": "commcare.user.field.resourceUi",
+                                "fieldKey": "resourceUi"
+                            },
+                            {
+                                "displayName": "commcare.user.field.username",
+                                "fieldKey": "username"
+                            },
+                            {
+                                "displayName": "commcare.user.field.groups",
+                                "fieldKey": "groups",
+                                "type": "LIST"
+                            },
+                            {
+                                "displayName": "commcare.user.field.userData",
+                                "fieldKey": "userData",
+                                "type": "MAP"
+                            },
+                            {
+                                "displayName": "commcare.user.field.phoneNumbers",
+                                "fieldKey": "phoneNumbers",
+                                "type": "LIST"
+                            }
+                        ]
+                },
+                {
+                    "displayName": #buildDisplayName("Location", "", "", $config.getConfigName()),
+                    "type": "CommcareLocation-$esc.java($config.getConfigName())",
+                    "lookupFields": [
+                            {
+                                "displayName": "commcare.id",
+                                "fields": [
+                                        "id"
+                                ]
+                            }
+                        ],
+                    "fields": [
+                            {
+                                "displayName": "commcare.location.field.createdAt",
+                                "fieldKey": "createdAt"
+                            },
+                            {
+                                "displayName": "commcare.location.field.domain",
+                                "fieldKey": "domain"
+                            },
+                            {
+                                "displayName": "commcare.location.field.externalId",
+                                "fieldKey": "externalId"
+                            },
+                            {
+                                "displayName": "commcare.location.field.lastModified",
+                                "fieldKey": "lastModified"
+                            },
+                            {
+                                "displayName": "commcare.location.field.locationData",
+                                "fieldKey": "locationData",
+                                "type": "MAP"
+                            },
+                            {
+                                "displayName": "commcare.location.field.id",
+                                "fieldKey": "id",
+                                "type": "LONG"
+                            },
+                            {
+                                "displayName": "commcare.location.field.latitude",
+                                "fieldKey": "latitude"
+                            },
+                            {
+                                "displayName": "commcare.location.field.resourceUri",
+                                "fieldKey": "resourceUri"
+                            },
+                            {
+                                "displayName": "commcare.location.field.locationId",
+                                "fieldKey": "locationId"
+                            },
+                            {
+                                "displayName": "commcare.location.field.locationType",
+                                "fieldKey": "locationType"
+                            },
+                            {
+                                "displayName": "commcare.location.field.longitude",
+                                "fieldKey": "longitude"
+                            },
+                            {
+                                "displayName": "commcare.location.field.name",
+                                "fieldKey": "name"
+                            },
+                            {
+                                "displayName": "commcare.location.field.parent",
+                                "fieldKey": "parent"
+                            },
+                            {
+                                "displayName": "commcare.location.field.siteCode",
+                                "fieldKey": "siteCode"
+                            }
+                        ]
+                }#if( $velocityHasNext ),#end
+            #end
+        ]
+}
